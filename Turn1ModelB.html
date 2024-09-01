@@ -1,163 +1,118 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Heart Attack Predictive Analysis Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disease-Symptom Visualizations</title>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3"></script>
+    <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist@2"></script>
     <style>
-      body {
-        font-family: Arial, sans-serif;
-        margin: 0;
-        padding: 20px;
-        background-color: #f4f4f4;
-      }
-      .container {
-        max-width: 1200px;
-        margin: auto;
-      }
-      #uploadSection {
-        margin-bottom: 20px;
-      }
-      #charts {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-around;
-      }
-      .chart-container {
-        width: 45%;
-        min-width: 300px;
-        margin: 10px;
-        background: white;
-        padding: 20px;
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-      }
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .chart-container {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .chart {
+            margin: 10px;
+        }
     </style>
-  </head>
-  <body>
-    <div class="container">
-      <h2>Heart Attack Predictive Analysis</h2>
-      <div id="uploadSection">
-        <input type="file" id="csvFile" accept=".csv" />
-        <button onclick="processCSV()">Process CSV</button>
-      </div>
-
-      <div id="charts"></div>
+</head>
+<body>
+    <input type="file" id="csvFileInput" accept=".csv">
+    <button onclick="handleFileUpload()">Upload CSV</button>
+    <div class="chart-container">
+        <!-- Visualization containers will be added here -->
     </div>
-
     <script>
-      let data = [];
+        let data = [];
 
-      function processCSV() {
-        const fileInput = document.getElementById('csvFile');
-        const file = fileInput.files[0];
-        Papa.parse(file, {
-          header: true,
-          dynamicTyping: true,
-          complete: function (results) {
-            data = results.data;
-            visualizeData();
-          },
-        });
-      }
+        function handleFileUpload() {
+            const input = document.getElementById('csvFileInput');
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = function() {
+                const csvData = reader.result;
+                const rows = csvData.split('\n');
+                data = rows.map(row => {
+                    const columns = row.split(',');
+                    return {
+                        disease: columns[0],
+                        symptoms: columns.slice(1).filter(s => s.trim() !== '')
+                    };
+                });
 
-      function visualizeData() {
-        document.getElementById('charts').innerHTML = ''; // Clear previous charts
+                visualizeData(data);
+            };
+            reader.readAsText(file);
+        }
 
-        // Example visualizations - you would expand these with more detailed analysis
-        const ageDistribution = calculateAgeDistribution();
-        const genderRisk = calculateGenderRisk();
+        function visualizeData(data) {
+            const container = document.querySelector('.chart-container');
 
-        // Age Distribution Chart
-        createChart(
-          'Age Distribution',
-          'ageDistribution',
-          'bar',
-          ageDistribution.labels,
-          ageDistribution.data
-        );
+            // Heatmap for symptom frequency per disease
+            const heatmapData = countSymptomsPerDisease(data);
+            Plotly.newPlot(createDiv('heatmap'), [{
+                x: Object.keys(heatmapData),
+                y: Object.values(heatmapData).map(Object.keys),
+                z: Object.values(heatmapData).map(arr => arr.map(count => count)),
+                type: 'heatmap',
+                colorscale: 'Viridis'
+            }], {title: 'Symptom Frequency Per Disease'});
 
-        // Gender Risk Chart
-        createChart(
-          'Gender Risk of Heart Attack',
-          'genderRisk',
-          'pie',
-          ['Male', 'Female'],
-          [genderRisk.male, genderRisk.female]
-        );
-      }
+            // Bar charts for overall and disease-specific symptom counts
+            const barChartData = countOverallSymptoms(data);
+            new Chart(createDiv('barChart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(barChartData),
+                    datasets: [{
+                        label: 'Symptom Count',
+                        data: Object.values(barChartData),
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: { title: { display: true, text: 'Overall Symptom Counts' }}
+            });
 
-      function calculateAgeDistribution() {
-        let ageGroups = { 'Below 40': 0, '40-59': 0, '60+': 0 };
-        data.forEach((entry) => {
-          if (entry.Age < 40) ageGroups['Below 40']++;
-          else if (entry.Age < 60) ageGroups['40-59']++;
-          else ageGroups['60+']++;
-        });
-        return {
-          labels: Object.keys(ageGroups),
-          data: Object.values(ageGroups),
-        };
-      }
+            // Placeholder for other visualizations
+            // ... implement other visualizations similarly
+        }
 
-      function calculateGenderRisk() {
-        let genderCount = { male: 0, female: 0 };
-        let genderWithAttack = { male: 0, female: 0 };
-        data.forEach((entry) => {
-          if (entry.Gender === 'Male') {
-            genderCount.male++;
-            if (entry.Heart_Attack === 1) genderWithAttack.male++;
-          } else {
-            genderCount.female++;
-            if (entry.Heart_Attack === 1) genderWithAttack.female++;
-          }
-        });
-        return {
-          male: (genderWithAttack.male / genderCount.male) * 100,
-          female: (genderWithAttack.female / genderCount.female) * 100,
-        };
-      }
+        function createDiv(className) {
+            const div = document.createElement('div');
+            div.className = `chart ${className}`;
+            document.querySelector('.chart-container').appendChild(div);
+            return div;
+        }
 
-      function createChart(title, id, type, labels, data) {
-        let container = document.createElement('div');
-        container.className = 'chart-container';
-        container.innerHTML = `<canvas id="${id}" width="400" height="400"></canvas>`;
-        document.getElementById('charts').appendChild(container);
+        function countSymptomsPerDisease(data) {
+            const count = {};
+            data.forEach(entry => {
+                if (!count[entry.disease]) count[entry.disease] = {};
+                entry.symptoms.forEach(symptom => {
+                    if (!count[entry.disease][symptom]) count[entry.disease][symptom] = 0;
+                    count[entry.disease][symptom]++;
+                });
+            });
+            return count;
+        }
 
-        new Chart(document.getElementById(id), {
-          type: type,
-          data: {
-            labels: labels,
-            datasets: [
-              {
-                label: title,
-                data: data,
-                backgroundColor: [
-                  'rgba(54, 162, 235, 0.2)',
-                  'rgba(255, 99, 132, 0.2)',
-                  'rgba(75, 192, 192, 0.2)',
-                ],
-                borderColor: [
-                  'rgba(54, 162, 235, 1)',
-                  'rgba(255, 99, 132, 1)',
-                  'rgba(75, 192, 192, 1)',
-                ],
-                borderWidth: 1,
-              },
-            ],
-          },
-          options: {
-            title: {
-              display: true,
-              text: title,
-            },
-            scales:
-              type === 'bar'
-                ? { yAxes: [{ ticks: { beginAtZero: true } }] }
-                : {},
-          },
-        });
-      }
+        function countOverallSymptoms(data) {
+            const symptomCount = {};
+            data.forEach(entry => {
+                entry.symptoms.forEach(symptom => {
+                    symptomCount[symptom] = (symptomCount[symptom] || 0) + 1;
+                });
+            });
+            return symptomCount;
+        }
     </script>
-  </body>
+</body>
 </html>
